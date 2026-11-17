@@ -1,0 +1,27 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+---
+
+<html lang="en" class="scheme-light-dark has-[dialog[open]]:overflow-hidden">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+  </head>
+  <body class="min-h-dvh bg-stone-50 text-stone-900 antialiased dark:bg-stone-950 dark:text-stone-100">
+    <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      <header class="mb-8">
+        <a href="/" class="text-lg font-semibold tracking-tight hover:opacity-80">Website Name</a>
+      </header>
+      <main>
+        <slot />
+      </main>
+    </div>
+  </body>
+</html>

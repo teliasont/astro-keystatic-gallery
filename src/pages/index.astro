@@ -1,0 +1,46 @@
+---
+import { getCollection } from 'astro:content';
+import { Image } from 'astro:assets';
+import Base from '../layouts/Base.astro';
+
+const galleries = (await getCollection('galleries')).sort(
+  (a, b) => (b.data.date?.valueOf() ?? 0) - (a.data.date?.valueOf() ?? 0)
+);
+---
+
+<Base title="Website Name">
+  <h1 class="mb-6 text-3xl font-bold tracking-tight sm:text-4xl">Photos</h1>
+  {
+    galleries.length === 0 ? (
+      <p class="text-stone-600 dark:text-stone-400">
+        No galleries yet. Create one in the{' '}
+        <a href="/keystatic" class="font-medium underline underline-offset-4">Keystatic admin</a>.
+      </p>
+    ) : (
+      <div class="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-6">
+        {galleries.map((g) => (
+          <a href={`/galleries/${g.id}/`} class="group block rounded-lg focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-500">
+            <figure>
+              <div class="aspect-[4/3] overflow-hidden rounded-lg bg-stone-200 dark:bg-stone-800">
+                <Image
+                  src={g.data.cover}
+                  alt={g.data.coverAlt}
+                  width={640}
+                  class="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+              </div>
+              <figcaption class="mt-2 flex items-baseline justify-between gap-2">
+                <span class="font-medium">{g.data.title}</span>
+                {g.data.date && (
+                  <time datetime={g.data.date.toISOString()} class="text-sm text-stone-500 dark:text-stone-400">
+                    {g.data.date.toLocaleDateString('en-US', { timeZone: 'UTC' })}
+                  </time>
+                )}
+              </figcaption>
+            </figure>
+          </a>
+        ))}
+      </div>
+    )
+  }
+</Base>

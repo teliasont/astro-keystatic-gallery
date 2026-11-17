@@ -1,0 +1,172 @@
+---
+import { getCollection, render } from 'astro:content';
+import { Image, getImage } from 'astro:assets';
+import Base from '../../layouts/Base.astro';
+
+export async function getStaticPaths() {
+  const galleries = await getCollection('galleries');
+  return galleries.map((gallery) => ({
+    params: { slug: gallery.id },
+    props: { gallery },
+  }));
+}
+
+const { gallery } = Astro.props;
+const { Content } = await render(gallery);
+
+// Large version shown in the lightbox; never upscale past the original.
+const photos = await Promise.all(
+  gallery.data.photos.map(async (photo) => ({
+    ...photo,
+    large: await getImage({
+      src: photo.image,
+      width: Math.min(2000, photo.image.width),
+      format: 'webp',
+    }),
+  }))
+);
+---
+
+<Base title={gallery.data.title}>
+  <header class="mb-8">
+    <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">{gallery.data.title}</h1>
+    {
+      gallery.data.date && (
+        <time datetime={gallery.data.date.toISOString()} class="mt-1 block text-sm text-stone-500 dark:text-stone-400">
+          {gallery.data.date.toLocaleDateString('en-US', { timeZone: 'UTC' })}
+        </time>
+      )
+    }
+    <div class="prose prose-stone mt-4 dark:prose-invert">
+      <Content />
+    </div>
+  </header>
+
+  <div class="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-6">
+    {
+      photos.map((photo, i) => (
+        <figure>
+          <a
+            class="thumb group block cursor-zoom-in overflow-hidden rounded-lg bg-stone-200 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-stone-800"
+            href={photo.large.src}
+            data-index={i}
+            data-alt={photo.alt}
+            data-caption={photo.caption}
+            aria-label={`Open ${photo.alt || `photo ${i + 1}`} full size`}
+          >
+            <Image
+              src={photo.image}
+              alt={photo.alt}
+              width={800}
+              class="h-auto w-full transition-transform duration-300 group-hover:scale-[1.02]"
+            />
+          </a>
+          {photo.caption && (
+            <figcaption class="mt-2 text-sm text-stone-600 dark:text-stone-400">{photo.caption}</figcaption>
+          )}
+        </figure>
+      ))
+    }
+  </div>
+
+  <dialog
+    class="lightbox m-0 h-dvh max-h-none w-screen max-w-none border-0 bg-black/95 p-0 text-white backdrop:bg-transparent open:grid open:place-items-center"
+    aria-label="Photo viewer"
+  >
+    <button
+      class="lb-close fixed top-4 right-4 grid size-11 cursor-pointer place-items-center rounded-full bg-white/10 text-3xl leading-none hover:bg-white/25 focus-visible:bg-white/25"
+      type="button"
+      aria-label="Close"
+    >
+      &times;
+    </button>
+    {
+      photos.length > 1 && (
+        <>
+          <p class="lb-counter fixed top-4 left-4 text-sm text-white/75" aria-live="polite" />
+          <button
+            class="lb-prev fixed top-1/2 left-4 grid size-11 -translate-y-1/2 cursor-pointer place-items-center rounded-full bg-white/10 text-3xl leading-none hover:bg-white/25 focus-visible:bg-white/25 max-sm:top-auto max-sm:bottom-4 max-sm:translate-y-0"
+            type="button"
+            aria-label="Previous photo"
+          >
+            &#8249;
+          </button>
+          <button
+            class="lb-next fixed top-1/2 right-4 grid size-11 -translate-y-1/2 cursor-pointer place-items-center rounded-full bg-white/10 text-3xl leading-none hover:bg-white/25 focus-visible:bg-white/25 max-sm:top-auto max-sm:bottom-4 max-sm:translate-y-0"
+            type="button"
+            aria-label="Next photo"
+          >
+            &#8250;
+          </button>
+        </>
+      )
+    }
+    <figure class="lb-figure box-border flex max-h-full max-w-full flex-col items-center gap-3 px-2 py-14 sm:px-16">
+      <img class="lb-img h-auto max-h-[calc(100dvh-9rem)] w-auto max-w-full object-contain" alt="" />
+      <figcaption class="lb-caption max-w-prose text-center text-sm text-white/85"></figcaption>
+    </figure>
+  </dialog>
+</Base>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>('dialog.lightbox')!;
+  const thumbs = [...document.querySelectorAll<HTMLAnchorElement>('a.thumb')];
+  const img = dialog.querySelector<HTMLImageElement>('.lb-img')!;
+  const caption = dialog.querySelector<HTMLElement>('.lb-caption')!;
+  const counter = dialog.querySelector<HTMLElement>('.lb-counter');
+  let current = 0;
+  let opener: HTMLElement | null = null;
+
+  function show(index: number) {
+    current = (index + thumbs.length) % thumbs.length;
+    const t = thumbs[current];
+    img.src = t.href;
+    img.alt = t.dataset.alt ?? '';
+    caption.textContent = t.dataset.caption ?? '';
+    caption.hidden = !t.dataset.caption;
+    if (counter) counter.textContent = `${current + 1} / ${thumbs.length}`;
+    // Preload neighbours so prev/next feel instant.
+    for (const n of [current - 1, current + 1]) {
+      const near = thumbs[(n + thumbs.length) % thumbs.length];
+      if (near) new Image().src = near.href;
+    }
+  }
+
+  thumbs.forEach((t, i) =>
+    t.addEventListener('click', (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+      e.preventDefault();
+      opener = t;
+      show(i);
+      dialog.showModal();
+    })
+  );
+
+  dialog.querySelector('.lb-close')!.addEventListener('click', () => dialog.close());
+  dialog.querySelector('.lb-prev')?.addEventListener('click', () => show(current - 1));
+  dialog.querySelector('.lb-next')?.addEventListener('click', () => show(current + 1));
+
+  // Click on the dark backdrop (not the photo or buttons) closes.
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog || e.target === dialog.querySelector('.lb-figure')) dialog.close();
+  });
+
+  dialog.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') show(current - 1);
+    if (e.key === 'ArrowRight') show(current + 1);
+  });
+
+  let touchX: number | null = null;
+  dialog.addEventListener('touchstart', (e) => (touchX = e.touches[0].clientX), { passive: true });
+  dialog.addEventListener('touchend', (e) => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) show(current + (dx < 0 ? 1 : -1));
+    touchX = null;
+  });
+
+  dialog.addEventListener('close', () => {
+    img.removeAttribute('src');
+    opener?.focus();
+  });
+</script>
