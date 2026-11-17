@@ -5,7 +5,7 @@ export default config({
   storage: import.meta.env.DEV ? { kind: 'local' } : { kind: 'cloud' },
   cloud: {
     // TODO: replace with the identifier from your Keystatic Cloud project's settings page.
-    project: 'your-team/your-project',
+    project: 'porpoises/astro-gallery',
   },
   ui: {
     brand: { name: 'Photo Gallery' },
